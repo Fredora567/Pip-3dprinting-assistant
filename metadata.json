@@ -1,0 +1,5 @@
+{
+  "name": "Pip — Printer Companion",
+  "description": "English voice companion with Gemma 4, ElevenLabs and a simulated Klipper printer.",
+  "requestFramePermissions": ["microphone"]
+}

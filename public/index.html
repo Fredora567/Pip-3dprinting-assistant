@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pip · Printer Companion</title><link rel="stylesheet" href="/style.css"></head>
+<body><aside><div class="brand">PIP<span>PRINTER COMPANION</span></div><h2>Your workbench</h2>
+<label>Printer source<select id="source"><option value="demo">Printer 01 · simulation</option><option value="home">Home printer · read only</option></select></label>
+<label class="check"><input id="consent" type="checkbox">Allow cloud speech processing</label><small>Completed speech clips go to ElevenLabs. Questions, recent conversation and printer state go to Google when Gemma is enabled. Replies go to ElevenLabs. Usage and provider data terms apply.</small>
+<label class="check"><input id="gemma" type="checkbox" checked>Use Gemma 4</label>
+<label class="check"><input id="wake" type="checkbox" checked>Wait for “Pip”</label><small>Local wake-name recognition needs browser support. It may be blocked in AI Studio's embedded preview. Open the app in its own tab, or explicitly turn off wake mode.</small>
+<label class="check"><input id="reduced" type="checkbox">Reduce motion</label>
+<label>Microphone sensitivity<input id="threshold" type="range" min="5" max="50" value="15"></label>
+<p id="keys" class="muted">Checking server configuration…</p>
+<form id="unlock" hidden><label>App password<input id="password" type="password" autocomplete="current-password"></label><button>Unlock</button></form>
+<button id="reset" class="secondary">Start a fresh session</button><p class="muted">Simulation controls only. Real printer mode is read only. Use headphones to reduce echo.</p></aside>
+<main><header><p class="eyebrow">PIP / YOUR PRINTING COMPANION</p><h1>A little help.<br>A better print.</h1><p>Say <strong>Pip</strong>, wait for the chime, then ask.</p><p class="muted">English conversation · Spoken confirmations · Local wake listening</p></header>
+<p id="source-note" class="muted">Printer 01 · Simulation · No hardware connected</p>
+<section class="metrics" id="metrics"><article><span>Progress</span><strong id="progress">36%</strong></article><article><span>Nozzle</span><strong id="nozzle">205 °C</strong><small id="nozzle-target">Target: 205 °C</small></article><article><span>Bed</span><strong id="bed">60 °C</strong><small id="bed-target">Target: 60 °C</small></article></section>
+<progress id="bar" max="1" value=".36"></progress><p id="printer-state" class="muted">little_pumpkin.gcode · Printing</p>
+<div id="error" class="error" role="alert" hidden></div>
+<iframe id="voice-frame" title="Pip voice companion" src="/voice.html" allow="microphone; autoplay; on-device-speech-recognition" scrolling="no"></iframe>
+<p id="pending" class="pending" hidden></p>
+<form id="text-form"><label for="question">Or type a question</label><div class="row"><input id="question" maxlength="1000" placeholder="How is my print doing?" required><button>Ask Pip</button></div></form>
+<section id="conversation" class="conversation" hidden><small>YOU</small><p id="you"></p><small>PIP</small><p id="reply"></p></section>
+<details><summary>Things you can say</summary><div class="guide"><div><h3>Check in</h3><p>How is my print doing?</p><p>What is the nozzle temperature?</p><p>What is printing?</p><p>How long has it been printing?</p></div><div><h3>Make a change</h3><p>Pause / resume / cancel my print.</p><p>Set nozzle to 220.</p><p>Set the fan to 50 percent.</p><p>Home all axes.</p></div></div><p class="muted">After the confirmation chime, say confirm or cancel. No wake name needed. Homing is blocked during a running or paused print. All controls apply to the simulation.</p></details>
+<details><summary>Response timing</summary><pre id="timings">No turn yet.</pre></details><footer>MIT-licensed source · Hosted providers have separate terms · No camera connection</footer>
+</main><script type="module" src="/app.js"></script></body></html>

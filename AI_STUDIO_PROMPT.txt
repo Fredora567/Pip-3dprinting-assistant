@@ -1,0 +1,28 @@
+Import and run this complete existing Pip printer companion application.
+
+This repository is a dependency-free Node.js 22+ full-stack web application.
+Keep package.json, server.mjs, lib/ and public/ at the repository root.
+Run npm run dev on port 3000 (or the supplied PORT). The server serves both
+the browser frontend and same-origin /api routes. Do not convert it back to
+Python or Streamlit. Do not replace it with a frontend-only mockup.
+
+Preserve the existing animated character, automatic ElevenLabs replies,
+English-only Scribe transcription, local-only Pip wake-name recognition,
+wake chime, confirmation chime and automatic confirmation listening without
+another wake name. Keep all provider calls on the server. Use Gemma 4 through
+the Gemini API, not a guessed Gemini model substitution.
+
+Configure GEMINI_API_KEY and ELEVENLABS_API_KEY only as server-side Secrets.
+Never paste keys into generated source, client code or VITE_ variables.
+Keep metadata.json microphone permissions. If iframe policy prevents on-device
+wake recognition, show the existing helpful error and offer open-conversation
+or typed mode; never silently use cloud wake detection.
+
+All executable actions are deterministic, token-bound, expiring and affect
+only simulated printer state. Real Moonraker mode is read-only. Keep homing
+blocked during running or paused prints and preserve temperature limits.
+Preserve the small simulation label and truthful replies about connectivity.
+Do not add a camera or Home Assistant integration.
+
+Run npm test and npm run build. Then show the running preview. Keep the app
+private while testing; do not publish or deploy it without my instruction.

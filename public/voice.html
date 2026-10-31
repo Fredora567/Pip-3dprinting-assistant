@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;background:#121a26;color:#edf4f8;font:15px system-ui}
+.stage{border:1px solid #33445d;border-radius:24px;padding:20px;text-align:center;background:radial-gradient(ellipse at 50% 65%,#244a50,#121a26 75%)}
+.robot{margin:15px auto 8px;width:158px;height:148px;position:relative;animation:float 3s ease-in-out infinite}
+.head{position:absolute;top:20px;left:8px;width:142px;height:96px;border:5px solid #b7d0e2;border-radius:32px;background:#253d51}
+.face{position:absolute;inset:11px;border-radius:20px;background:#0d1b28;display:flex;justify-content:center;align-items:center;gap:23px}
+.eye{width:17px;height:23px;border-radius:8px;background:#78f5d5;animation:blink 5s infinite}
+.mouth{position:absolute;bottom:10px;left:47px;width:18px;height:4px;border-radius:5px;background:#78f5d5}
+.antenna{position:absolute;left:76px;top:0;width:5px;height:22px;background:#a0b6ca}.antenna:before{content:'';position:absolute;left:-5px;top:-6px;width:15px;height:15px;border-radius:50%;background:#72f0cf;box-shadow:0 0 18px #72f0cf}
+.body{position:absolute;left:43px;top:121px;width:72px;height:27px;border-radius:10px 10px 20px 20px;background:#b7d0e2}
+.speaking .mouth{animation:talk .15s infinite alternate}.listening .head{border-color:#72f0cf}.thinking .antenna:before{background:#c4a3ff;animation:pulse .5s infinite alternate}
+button{border:0;border-radius:10px;padding:12px 18px;margin:5px;background:#6be8cb;color:#10242b;font:600 14px system-ui;cursor:pointer}button:disabled{opacity:.4;cursor:default}#stop{background:#303d51;color:#fff}audio{display:block;width:min(100%,330px);height:36px;margin:12px auto}#status{min-height:24px}#note{font-size:12px;color:#adc4d4;margin:8px 0 0}
+@keyframes float{50%{transform:translateY(-6px)}}@keyframes blink{0%,43%,47%,100%{transform:scaleY(1)}45%{transform:scaleY(.1)}}@keyframes talk{to{height:14px;bottom:5px}}@keyframes pulse{to{opacity:.3}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}.reduced *{animation:none!important}
+.stage{padding:24px 22px;background:radial-gradient(ellipse at 50% 35%,#25454c 0,#172631 40%,#131e2b 80%);box-shadow:0 18px 55px #03080f35}
+.robot{margin:20px auto 22px;filter:drop-shadow(0 14px 14px #050d1755)}
+#status{font-size:18px;font-weight:650;letter-spacing:-.3px;margin-bottom:14px}
+#status:before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#8698a8;margin-right:9px;vertical-align:middle}
+.listening #status:before{background:#72f0cf;box-shadow:0 0 12px #72f0cf88}.thinking #status:before{background:#c4a3ff}.speaking #status:before{background:#72f0cf}
+button{min-height:44px;transition:filter .15s,transform .15s}button:hover:enabled{filter:brightness(1.1);transform:translateY(-1px)}button:focus-visible{outline:3px solid #e8faf5;outline-offset:3px}
+#test-chime{background:transparent;color:#b8ccda;border:1px solid #3d5363;font-size:12px;padding:7px 12px;min-height:36px}
+#note{max-width:520px;line-height:1.5;margin:12px auto;color:#b8ccda}
+details{border-top:1px solid #314656;margin-top:16px;padding-top:12px;font-size:12px;color:#b8ccda}summary{cursor:pointer;padding:5px}
+meter{vertical-align:middle;max-width:150px;width:38%}
+audio{opacity:.86;margin-top:16px}
+@media(max-width:480px){.stage{padding:18px 12px}button{padding:11px 13px;font-size:13px}#status{font-size:16px}}
+.reduced *{transition:none!important}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body><main class="stage" id="stage">
+<div class="robot" role="img" aria-label="Pip the robot"><div class="antenna"></div><div class="head"><div class="face"><i class="eye"></i><i class="eye"></i><i class="mouth"></i></div></div><div class="body"></div></div>
+<div id="status" role="status" aria-live="polite">Ready</div>
+<button id="start">Start conversation</button><button id="stop" disabled>Stop conversation</button>
+<button id="install" hidden>Install local English speech pack</button>
+<button id="test-chime">Test chime · v2</button>
+<audio id="voice" controls aria-label="Pip voice reply"></audio><p id="note">Microphone is off. Start requires browser microphone permission.</p>
+<details id="diagnostics"><summary>Microphone &amp; wake diagnostics</summary>
+<p style="font-size:12px;margin:8px"><label for="level">Microphone level </label><meter id="level" min="0" max="0.12" value="0"></meter></p>
+<p id="engine" style="font-size:12px;margin:4px">Local wake engine: not started</p>
+<p id="heard" style="font-size:12px;margin:4px;min-height:32px">Heard locally: —</p>
+</details>
+</main><script>
+const stage=document.getElementById('stage'),status=document.getElementById('status'),note=document.getElementById('note'),start=document.getElementById('start'),stop=document.getElementById('stop'),player=document.getElementById('voice');
+let args={},active=false,starting=false,busy=false,speaking=false,stream=null,ctx=null,processor=null,mic=null,mute=null;
+let buffers=[],samples=0,voiced=0,silence=0,lastReply='',sequence=0,currentUrl=null,cooldown=0;
+let awake=false,wakeRecognizer=null,wakeDeadline=0,wakeRetry=null;
+let confirmationArmed='',playbackConfirmationToken='';
+let lastMeter=0;
+const level=document.getElementById('level'),engine=document.getElementById('engine'),heard=document.getElementById('heard');
+const install=document.getElementById('install');
+const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+function wakeEnabled(){return args.wake_name!==false;}
+function hasWakeName(text){const normalized=String(text).toLowerCase().replace(/\bp[.\s]+i[.\s]+p\b/g,'pip');return /\b(?:pip|peep)\b/i.test(normalized);}
+async function wakeChime(){
+// Generated on-device using the AudioContext unlocked by Start conversation.
+if(!ctx)return false;
+try{
+if(ctx.state!=='running')await ctx.resume();
+if(!ctx||ctx.state!=='running'){note.textContent='Chime blocked: click Test chime to enable browser audio.';return false;}
+const now=ctx.currentTime;
+for(const [offset,frequency] of [[0,660],[.18,880]]){
+const oscillator=ctx.createOscillator(),gain=ctx.createGain();
+oscillator.type='sine';oscillator.frequency.value=frequency;
+gain.gain.setValueAtTime(0,now+offset);
+gain.gain.linearRampToValueAtTime(.22,now+offset+.015);
+gain.gain.exponentialRampToValueAtTime(.001,now+offset+.17);
+oscillator.connect(gain);gain.connect(ctx.destination);
+oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};
+oscillator.start(now+offset);oscillator.stop(now+offset+.19);
+}
+// Avoid treating the chime or its room echo as the next spoken question.
+cooldown=performance.now()+450;
+return true;
+}catch(error){note.textContent='Chime could not play. Click Test chime and check the browser audio output.';return false;}
+}
+document.getElementById('test-chime').onclick=async()=>{
+try{
+if(!ctx||ctx.state==='closed')ctx=new(window.AudioContext||window.webkitAudioContext)();
+// Call resume directly in the click handler, before microphone permission awaits.
+await ctx.resume();const played=await wakeChime();
+if(played)note.textContent='Test chime sent to your default audio output. If silent, check tab mute, Windows volume mixer and the selected output device.';
+}catch(error){note.textContent='Browser audio is blocked or unavailable. Allow site sound and try Test chime again.';}
+};
+function stopWake(){clearTimeout(wakeRetry);wakeRetry=null;const old=wakeRecognizer;wakeRecognizer=null;if(old){old.onend=null;old.onresult=null;old.onerror=null;try{old.abort();}catch(error){}}}
+function startWake(){
+if(!active||awake||busy||speaking||!wakeEnabled())return;
+stopWake();const recognition=new Recognition();wakeRecognizer=recognition;
+recognition.lang='en-US';recognition.continuous=true;recognition.interimResults=true;
+recognition.maxAlternatives=5;
+// Never allow the default cloud recognition path for background wake detection.
+recognition.processLocally=true;
+recognition.onstart=()=>{if(recognition===wakeRecognizer)engine.textContent='Local wake engine: listening for Pip (or “peep”)';};
+recognition.onspeechstart=()=>{if(recognition===wakeRecognizer)engine.textContent='Local wake engine: speech detected';};
+recognition.onresult=event=>{
+if(recognition!==wakeRecognizer||!active||awake||busy||speaking)return;
+for(let i=event.resultIndex;i<event.results.length;i++){
+const result=event.results[i];heard.textContent='Heard locally: '+String(result[0].transcript).slice(0,140);
+let matched=false;for(let j=0;j<result.length;j++){if(hasWakeName(result[j].transcript)){matched=true;break;}}
+if(matched){
+awake=true;wakeDeadline=performance.now()+12000;resetCapture();stopWake();
+wakeChime();
+engine.textContent='Wake name recognised — ready for your question';
+state('I’m listening — ask your question','listening');note.textContent='Pip heard its name. Your next question will be sent for transcription.';break;}}
+};
+recognition.onend=()=>{if(recognition===wakeRecognizer&&active&&!awake&&!busy&&!speaking){engine.textContent='Local wake engine: restarting after a listening session';wakeRetry=setTimeout(startWake,400);}};
+recognition.onerror=event=>{if(recognition!==wakeRecognizer)return;if(event.error==='no-speech'||event.error==='aborted')return;halt('Local wake recognition failed. Check browser support and the English speech pack. No cloud wake fallback was used.');};
+try{recognition.start();}catch(error){halt('Could not start local wake recognition. Try Start again, or use manual mode.');}
+}
+function waitForName(){
+resetCapture();awake=!wakeEnabled();
+if(!active)return;
+if(confirmationArmed&&args.confirmation_token===confirmationArmed){awake=true;wakeDeadline=performance.now()+12000;stopWake();state('Say “confirm” or “cancel”','listening');note.textContent='Confirmation listening is active for 12 seconds. No wake name needed.';return;}
+if(awake){state('Listening — your turn','listening');note.textContent='Microphone is on. Speak your next question.';}
+else{state('Waiting for “Pip”');note.textContent='Local wake listening only. Say Pip, wait for the listening indicator, then ask. No clip is being sent to a provider.';startWake();}}
+function listenForConfirmation(token){
+// Enter this state immediately on the actual audio-ended event, bypassing
+// wake recognition and its delayed standby restart entirely.
+clearTimeout(wakeRetry);stopWake();confirmationArmed=token;awake=true;busy=false;
+resetCapture();wakeDeadline=performance.now()+15000;
+state('Say “confirm” or “cancel” — no Pip needed','listening');
+note.textContent='Confirmation listening · v3 · Wait for the chime, then say confirm or cancel. Listening for 15 seconds.';
+wakeChime();
+}
+async function checkLocalWake(){
+if(!wakeEnabled())return;
+if(!Recognition||!('processLocally' in new Recognition())||typeof Recognition.available!=='function')throw new Error('wake-unsupported');
+const availability=await Recognition.available({langs:['en-US'],processLocally:true});
+if(availability!=='available'){
+install.hidden=typeof Recognition.install!=='function';
+throw new Error(availability==='downloadable'||availability==='downloading'?'wake-pack':'wake-unsupported');}}
+install.onclick=async()=>{
+if(!Recognition||typeof Recognition.install!=='function')return;
+install.disabled=true;state('Installing local English speech pack…');
+try{const ok=await Recognition.install({langs:['en-US'],processLocally:true});state(ok?'Speech pack ready — press Start':'Could not install speech pack');if(ok)install.hidden=true;}
+catch(error){state('Speech pack installation blocked by this browser');}
+finally{install.disabled=false;}};
+const session=(crypto.randomUUID?crypto.randomUUID():String(Date.now()));
+function send(type,extra={}){parent.postMessage({isStreamlitMessage:true,type,...extra},'*');}
+function state(text,pose=''){status.textContent=text;stage.className='stage '+pose+(args.reduced?' reduced':'');}
+function resetCapture(){buffers=[];samples=0;voiced=0;silence=0;}
+function halt(message='Conversation stopped. Microphone is off.'){
+active=false;starting=false;busy=false;speaking=false;awake=false;stopWake();player.pause();resetCapture();
+confirmationArmed='';
+level.value=0;engine.textContent='Local wake engine: stopped';heard.textContent='Heard locally: —';
+if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;
+if(processor){processor.onaudioprocess=null;processor.disconnect();}processor=null;
+if(mic)mic.disconnect();mic=null;if(mute)mute.disconnect();mute=null;
+if(ctx)ctx.close().catch(()=>{});ctx=null;
+stop.disabled=true;start.disabled=!args.enabled;state('Stopped');note.textContent=message;}
+function wavBase64(){
+const count=buffers.reduce((n,b)=>n+b.length,0),buffer=new ArrayBuffer(44+count*2),view=new DataView(buffer);
+function str(at,s){for(let i=0;i<s.length;i++)view.setUint8(at+i,s.charCodeAt(i));}
+str(0,'RIFF');view.setUint32(4,36+count*2,true);str(8,'WAVE');str(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);view.setUint32(24,ctx.sampleRate,true);view.setUint32(28,ctx.sampleRate*2,true);view.setUint16(32,2,true);view.setUint16(34,16,true);str(36,'data');view.setUint32(40,count*2,true);
+let at=44;for(const chunk of buffers)for(const sample of chunk){let v=Math.max(-1,Math.min(1,sample));view.setInt16(at,v<0?v*32768:v*32767,true);at+=2;}
+const bytes=new Uint8Array(buffer);let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);}
+function submit(){
+if(!active||busy||!awake||voiced<.25){resetCapture();return;}
+const audio=wavBase64();resetCapture();busy=true;state('Pip is thinking…','thinking');note.textContent='Microphone transmission is paused while Pip prepares a reply.';
+awake=false;stopWake();
+send('streamlit:setComponentValue',{value:{id:session+'-'+(++sequence),kind:'recording',audio,confirmation_token:confirmationArmed},dataType:'json'});confirmationArmed='';}
+start.onclick=async()=>{
+if(!args.enabled||active||starting)return;starting=true;start.disabled=true;state('Requesting microphone…');
+try{
+if(!ctx||ctx.state==='closed')ctx=new(window.AudioContext||window.webkitAudioContext)();
+await ctx.resume();
+await checkLocalWake();
+if(!starting||!args.enabled)return;
+const obtained=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
+if(!starting||!args.enabled){obtained.getTracks().forEach(t=>t.stop());return;}
+stream=obtained;await ctx.resume();
+mic=ctx.createMediaStreamSource(stream);processor=ctx.createScriptProcessor(4096,1,1);mute=ctx.createGain();mute.gain.value=0;mic.connect(processor);processor.connect(mute);mute.connect(ctx.destination);
+active=true;starting=false;busy=false;stop.disabled=false;waitForName();
+processor.onaudioprocess=event=>{
+if(!active||busy||speaking||performance.now()<cooldown)return;
+const chunk=new Float32Array(event.inputBuffer.getChannelData(0));let rms=0;for(const v of chunk)rms+=v*v;rms=Math.sqrt(rms/chunk.length);
+if(performance.now()-lastMeter>150){level.value=rms;lastMeter=performance.now();}
+if(!awake){resetCapture();return;}
+if((wakeEnabled()||confirmationArmed)&&voiced===0&&performance.now()>wakeDeadline){
+if(confirmationArmed){const token=confirmationArmed;confirmationArmed='';awake=false;busy=true;resetCapture();state('Confirmation expired');send('streamlit:setComponentValue',{value:{id:session+'-'+(++sequence),kind:'confirmation_timeout',confirmation_token:token},dataType:'json'});}
+else waitForName();return;}
+const duration=chunk.length/ctx.sampleRate,loud=rms>(args.threshold||.015);
+if(loud){voiced+=duration;silence=0;}else silence+=duration;
+buffers.push(chunk);samples+=chunk.length;
+if(voiced===0){while(samples>ctx.sampleRate*.3&&buffers.length>1)samples-=buffers.shift().length;}
+if(voiced>0&&((silence>.7&&voiced>=.25)||samples/ctx.sampleRate>12))submit();
+};
+}catch(error){
+const message=error&&error.message;
+halt(message==='wake-pack'?'Install the local English speech pack using the button below, then Start again.':message==='wake-unsupported'?'This browser cannot run local wake detection here. Use a browser with on-device SpeechRecognition support, or turn off the wake-name setting explicitly.':error&&error.name==='NotAllowedError'?'Microphone permission denied. Allow access in the browser, then Start again.':'Could not open local speech recognition or the microphone. Check browser permissions, or use manual mode.');}
+};
+stop.onclick=()=>halt();
+player.onplay=()=>{speaking=true;stopWake();state('Pip is speaking','speaking');};
+player.onended=()=>{
+speaking=false;busy=false;resetCapture();
+if(!active){state('Ready');return;}
+const token=playbackConfirmationToken;
+if(token&&token===args.confirmation_token){listenForConfirmation(token);return;}
+confirmationArmed='';cooldown=performance.now()+500;
+if(wakeEnabled())wakeRetry=setTimeout(waitForName,500);else waitForName();
+};
+player.onpause=()=>{speaking=false;if(active&&busy)state('Reply paused — press Play to finish, or Stop conversation');else state('Ready');};
+player.onerror=()=>{if(active)halt('Audio playback failed. Check output settings and Start again.');};
+window.addEventListener('message',async event=>{
+if(event.source!==parent||event.data.type!=='streamlit:render')return;
+args=event.data.args||{};stage.classList.toggle('reduced',!!args.reduced);start.disabled=!args.enabled||active||starting;
+if(!args.enabled&&(active||starting))halt('Live conversation disabled. Microphone is off.');
+if(args.reply_id&&args.reply_id!==lastReply){
+lastReply=args.reply_id;
+if(!args.audio){if(active&&busy)halt('Pip could not create this reply. Read the message below, fix the issue, and Start again.');}
+else{
+if(currentUrl)URL.revokeObjectURL(currentUrl);
+const binary=atob(args.audio),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+currentUrl=URL.createObjectURL(new Blob([bytes],{type:'audio/mpeg'}));player.src=currentUrl;
+playbackConfirmationToken=args.confirmation_token||'';
+if(active){busy=true;try{await player.play();}catch(error){state('Press Play once to allow Pip to speak');note.textContent='Your browser blocked automatic sound. Press Play below; listening resumes when the reply finishes.';}}
+}}
+resizeFrame();
+});
+window.addEventListener('pagehide',()=>halt());
+function resizeFrame(){send('streamlit:setFrameHeight',{height:Math.ceil(document.getElementById('stage').getBoundingClientRect().height)+4});}
+if(typeof ResizeObserver!=='undefined'){new ResizeObserver(resizeFrame).observe(stage);}
+document.getElementById('diagnostics').ontoggle=resizeFrame;
+send('streamlit:componentReady',{apiVersion:1});resizeFrame();
+</script></body></html>
